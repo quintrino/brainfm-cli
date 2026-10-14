@@ -12,73 +12,36 @@ permissions:
   contents: write
 
 jobs:
-  build:
-    name: Build ${{ matrix.target }}
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: true
-      matrix:
-        include:
-          - target: aarch64-apple-darwin
-            os: macos-latest
-          - target: x86_64-apple-darwin
-            os: macos-latest
-          - target: x86_64-unknown-linux-gnu
-            os: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Compute release tag
-        id: meta
-        shell: bash
-        run: |
-          version=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -n1)
-          echo "tag=v${version}-build.${{ github.run_number }}" >> "$GITHUB_OUTPUT"
-
-      - name: Install Rust target
-        run: rustup target add ${{ matrix.target }}
-
-      - uses: Swatinem/rust-cache@v2
-        with:
-          key: ${{ matrix.target }}
-
-      - name: Build
-        run: cargo build --release --locked --target ${{ matrix.target }}
-
-      - name: Package
-        shell: bash
-        run: |
-          name="brainfm-cli-${{ steps.meta.outputs.tag }}-${{ matrix.target }}"
-          tar -C "target/${{ matrix.target }}/release" -czf "$name.tar.gz" brainfm
-          shasum -a 256 "$name.tar.gz" > "$name.tar.gz.sha256"
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.target }}
-          path: brainfm-cli-*
-
   release:
     name: Publish release
-    needs: build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/download-artifact@v4
-        with:
-          path: dist
-          merge-multiple: true
+      - name: Create source tarball
+        id: meta
+        shell: bash
+        run: |
+          version=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -n1)
+          tag="v${version}-build.${{ github.run_number }}"
+          archive="brainfm-cli-${tag}.tar.gz"
+          git archive --format=tar.gz --prefix="brainfm-cli-${tag}/" -o "$archive" HEAD
+          {
+            echo "version=${version}"
+            echo "tag=${tag}"
+            echo "archive=${archive}"
+            echo "sha256=$(sha256sum "$archive" | cut -d' ' -f1)"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Create GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
-          version=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -n1)
-          tag="v${version}-build.${{ github.run_number }}"
-          gh release create "$tag" dist/* \
+          gh release create "${{ steps.meta.outputs.tag }}" \
+            "${{ steps.meta.outputs.archive }}" \
             --target "${{ github.sha }}" \
-            --title "$tag" \
+            --title "${{ steps.meta.outputs.tag }}" \
             --generate-notes
 
       - name: Update Homebrew tap
@@ -87,43 +50,30 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          version=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -n1)
-          tag="v${version}-build.${{ github.run_number }}"
+          tag="${{ steps.meta.outputs.tag }}"
           # Homebrew needs a plain dotted version so upgrades order numerically
-          brew_version="${version}.${{ github.run_number }}"
-          base="https://github.com/${{ github.repository }}/releases/download/${tag}"
-
-          sha() { cut -d' ' -f1 "dist/brainfm-cli-${tag}-$1.tar.gz.sha256"; }
-          url() { echo "${base}/brainfm-cli-${tag}-$1.tar.gz"; }
+          brew_version="${{ steps.meta.outputs.version }}.${{ github.run_number }}"
+          url="https://github.com/${{ github.repository }}/releases/download/${tag}/${{ steps.meta.outputs.archive }}"
 
           git clone "https://x-access-token:${TAP_TOKEN}@github.com/quintrino/homebrew-tap.git" tap
           cat > tap/Formula/brainfm-cli.rb <<RUBY
           class BrainfmCli < Formula
             desc "Unofficial Brain.fm CLI"
             homepage "https://github.com/${{ github.repository }}"
+            url "${url}"
+            sha256 "${{ steps.meta.outputs.sha256 }}"
             version "${brew_version}"
 
             depends_on "mpv"
-
-            on_macos do
-              if Hardware::CPU.arm?
-                url "$(url aarch64-apple-darwin)"
-                sha256 "$(sha aarch64-apple-darwin)"
-              else
-                url "$(url x86_64-apple-darwin)"
-                sha256 "$(sha x86_64-apple-darwin)"
-              end
-            end
+            depends_on "rust" => :build
 
             on_linux do
+              depends_on "pkg-config" => :build
               depends_on "openssl@3"
-
-              url "$(url x86_64-unknown-linux-gnu)"
-              sha256 "$(sha x86_64-unknown-linux-gnu)"
             end
 
             def install
-              bin.install "brainfm"
+              system "cargo", "install", *std_cargo_args
             end
 
             test do

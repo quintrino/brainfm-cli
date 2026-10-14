@@ -14,7 +14,7 @@ sessions from the terminal.
 brew install quintrino/tap/brainfm-cli
 ```
 
-This also installs `mpv`. Or build from source:
+Homebrew builds it from source (installing Rust as a build dependency) and also installs `mpv`. Or build it yourself:
 
 ## Build
 
