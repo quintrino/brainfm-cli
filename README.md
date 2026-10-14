@@ -29,9 +29,10 @@ The binary is `target/release/brainfm`.
 ## Setup
 
 1. Open Brain.fm in your browser and log in
-2. Open DevTools → Network tab → click any `api.brain.fm` request
-3. Copy the `Authorization` header value (everything after `Bearer `)
-4. Save it:
+2. Open the web console (DevTools) → Network tab
+3. Find the request to `https://api.brain.fm` for the file `me`. The token is
+   labeled `token` in that request
+4. Copy the `token` value and save it:
 
 ```bash
 brainfm init --token <token>
