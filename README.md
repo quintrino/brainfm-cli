@@ -14,7 +14,9 @@ sessions from the terminal.
 brew install quintrino/tap/brainfm-cli
 ```
 
-Homebrew builds it from source (installing Rust as a build dependency) and also installs `mpv`. Or build it yourself:
+This installs a prebuilt binary with no extra dependencies. You still need an
+audio player on your `PATH` (see Requirements), e.g. `brew install mpv`. Or
+build it yourself:
 
 ## Build
 
