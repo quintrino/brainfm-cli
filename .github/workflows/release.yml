@@ -52,7 +52,7 @@ jobs:
         shell: bash
         run: |
           name="brainfm-cli-${{ steps.meta.outputs.tag }}-${{ matrix.target }}"
-          tar -C "target/${{ matrix.target }}/release" -czf "$name.tar.gz" brainfm
+          tar -C "target/${{ matrix.target }}/release" -czf "$name.tar.gz" brainfm-cli
           shasum -a 256 "$name.tar.gz" > "$name.tar.gz.sha256"
 
       - uses: actions/upload-artifact@v4
@@ -124,18 +124,18 @@ jobs:
             end
 
             def install
-              bin.install "brainfm"
+              bin.install "brainfm-cli"
             end
 
             def caveats
               <<~EOS
-                brainfm needs an audio player on your PATH: mpv, vlc, ffplay, or mplayer.
+                brainfm-cli needs an audio player on your PATH: mpv, vlc, ffplay, or mplayer.
                 Install one if you don't have one, e.g. brew install mpv
               EOS
             end
 
             test do
-              assert_match "Unofficial Brain.fm CLI", shell_output("#{bin}/brainfm --help")
+              assert_match "Unofficial Brain.fm CLI", shell_output("#{bin}/brainfm-cli --help")
             end
           end
           RUBY

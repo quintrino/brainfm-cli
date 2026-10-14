@@ -12,7 +12,7 @@ use std::time::Duration;
 
 const API_BASE: &str = "https://api.brain.fm";
 const TOKEN_ENV: &str = "BRAINFM_TOKEN";
-const TOKEN_FILE: &str = ".local/share/brainfm/token";
+const TOKEN_FILE: &str = ".local/share/brainfm-cli/token";
 const USER_AGENT: &str =
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:151.0) Gecko/20100101 Firefox/151.0";
 
@@ -137,7 +137,7 @@ fn build_client(token: &str) -> Result<Client> {
 
 // ── API ───────────────────────────────────────────────────────────────────────
 
-const TOKEN_HINT: &str = "your token may have expired; get a fresh one from the browser and run `brainfm init --token <token>`";
+const TOKEN_HINT: &str = "your token may have expired; get a fresh one from the browser and run `brainfm-cli init --token <token>`";
 
 fn snippet(body: &str) -> String {
     let s: String = body.chars().take(200).collect();
@@ -270,19 +270,19 @@ fn play_url(url: &str) -> Result<()> {
             return Ok(());
         }
     }
-    bail!("No player found. Install mpv, or use `brainfm url` and pipe yourself.")
+    bail!("No player found. Install mpv, or use `brainfm-cli url` and pipe yourself.")
 }
 
 // ── Cache ─────────────────────────────────────────────────────────────────────
 
-/// Returns $XDG_DATA_HOME/brainfm or ~/.local/share/brainfm
+/// Returns $XDG_DATA_HOME/brainfm-cli or ~/.local/share/brainfm-cli
 fn cache_dir() -> PathBuf {
     let base = env::var("XDG_DATA_HOME")
         .map(PathBuf::from)
         .unwrap_or_else(|_| {
             PathBuf::from(env::var("HOME").unwrap_or_default()).join(".local/share")
         });
-    base.join("brainfm")
+    base.join("brainfm-cli")
 }
 
 /// If the file is already cached, return its path.
@@ -388,7 +388,7 @@ fn resolve_activity<'a>(acts: &'a [Activity], input: &str) -> Option<&'a Activit
 // ── CLI ───────────────────────────────────────────────────────────────────────
 
 #[derive(Parser)]
-#[command(name = "brainfm", about = "Unofficial Brain.fm CLI")]
+#[command(name = "brainfm-cli", about = "Unofficial Brain.fm CLI")]
 struct Cli {
     #[arg(long, env = TOKEN_ENV, global = true, hide_env_values = true)]
     token: Option<String>,
@@ -425,7 +425,7 @@ enum Cmd {
         /// Genre/sound filter e.g. --genre Thunder
         #[arg(long, short)]
         genre: Option<String>,
-        /// Cache the audio file in $XDG_DATA_HOME/brainfm and reuse on future plays
+        /// Cache the audio file in $XDG_DATA_HOME/brainfm-cli and reuse on future plays
         #[arg(long)]
         cache: bool,
     },
@@ -567,7 +567,7 @@ mod tests {
     fn null_result_gives_actionable_error() {
         let err = states(StatusCode::OK, r#"{"result":null}"#).unwrap_err().to_string();
         assert!(err.contains("no result"), "{err}");
-        assert!(err.contains("brainfm init"), "{err}");
+        assert!(err.contains("brainfm-cli init"), "{err}");
         assert!(!err.contains("invalid type"), "{err}");
     }
 
@@ -584,7 +584,7 @@ mod tests {
     fn unauthorized_points_at_token_refresh() {
         for status in [StatusCode::UNAUTHORIZED, StatusCode::FORBIDDEN] {
             let err = states(status, r#"{"result":null}"#).unwrap_err().to_string();
-            assert!(err.contains("brainfm init"), "{err}");
+            assert!(err.contains("brainfm-cli init"), "{err}");
         }
     }
 

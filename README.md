@@ -1,4 +1,4 @@
-# brainfm
+# brainfm-cli
 
 An unofficial command-line client for Brain.fm. Plays Focus, Sleep, and Relax
 sessions from the terminal.
@@ -24,7 +24,7 @@ build it yourself:
 cargo build --release
 ```
 
-The binary is `target/release/brainfm`.
+The binary is `target/release/brainfm-cli`.
 
 ## Setup
 
@@ -35,10 +35,10 @@ The binary is `target/release/brainfm`.
 4. Copy the `token` value and save it:
 
 ```bash
-brainfm init --token <token>
+brainfm-cli init --token <token>
 ```
 
-The token is stored in `~/.local/share/brainfm/token`. You can also pass
+The token is stored in `~/.local/share/brainfm-cli/token`. You can also pass
 `--token` on any command or set `BRAINFM_TOKEN`.
 
 Tokens expire in ~15 minutes. When a command fails with an auth error, grab a
@@ -47,17 +47,17 @@ fresh token from the browser and run `init` again.
 ## Usage
 
 ```bash
-brainfm ls                          # list mental states
-brainfm activities focus            # list activities for a state
-brainfm play focus                  # play a state's default activity
-brainfm play focus -a <activity>    # play a specific activity
-brainfm play sleep --nel low        # neural effect level: low | medium | high
-brainfm play relax -g Rain          # filter by genre/sound
-brainfm url focus                   # print the signed stream URL
+brainfm-cli ls                          # list mental states
+brainfm-cli activities focus            # list activities for a state
+brainfm-cli play focus                  # play a state's default activity
+brainfm-cli play focus -a <activity>    # play a specific activity
+brainfm-cli play sleep --nel low        # neural effect level: low | medium | high
+brainfm-cli play relax -g Rain          # filter by genre/sound
+brainfm-cli url focus                   # print the signed stream URL
 ```
 
 Known genres: Thunder, Rain, Wind, Fire, Ocean, River, Underwater, Birds,
 Night Sounds, Brown Noise, Pink Noise, White Noise.
 
-`loop` is a helper script that runs `brainfm play focus` continuously,
+`loop` is a helper script that runs `brainfm-cli play focus` continuously,
 restarting it at the top of every hour.
