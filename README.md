@@ -8,6 +8,14 @@ sessions from the terminal.
 - Rust: `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`
 - A player on your `PATH`: `mpv`, `vlc`, `ffplay`, or `mplayer`
 
+## Install
+
+```bash
+brew install quintrino/tap/brainfm
+```
+
+This also installs `mpv`. Or build from source:
+
 ## Build
 
 ```bash
