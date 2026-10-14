@@ -11,7 +11,7 @@ sessions from the terminal.
 ## Install
 
 ```bash
-brew install quintrino/tap/brainfm
+brew install quintrino/tap/brainfm-cli
 ```
 
 This also installs `mpv`. Or build from source:

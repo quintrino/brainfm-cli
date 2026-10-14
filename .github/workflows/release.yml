@@ -48,14 +48,14 @@ jobs:
       - name: Package
         shell: bash
         run: |
-          name="brainfm-${{ steps.meta.outputs.tag }}-${{ matrix.target }}"
+          name="brainfm-cli-${{ steps.meta.outputs.tag }}-${{ matrix.target }}"
           tar -C "target/${{ matrix.target }}/release" -czf "$name.tar.gz" brainfm
           shasum -a 256 "$name.tar.gz" > "$name.tar.gz.sha256"
 
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.target }}
-          path: brainfm-*
+          path: brainfm-cli-*
 
   release:
     name: Publish release
@@ -93,12 +93,12 @@ jobs:
           brew_version="${version}.${{ github.run_number }}"
           base="https://github.com/${{ github.repository }}/releases/download/${tag}"
 
-          sha() { cut -d' ' -f1 "dist/brainfm-${tag}-$1.tar.gz.sha256"; }
-          url() { echo "${base}/brainfm-${tag}-$1.tar.gz"; }
+          sha() { cut -d' ' -f1 "dist/brainfm-cli-${tag}-$1.tar.gz.sha256"; }
+          url() { echo "${base}/brainfm-cli-${tag}-$1.tar.gz"; }
 
           git clone "https://x-access-token:${TAP_TOKEN}@github.com/quintrino/homebrew-tap.git" tap
-          cat > tap/Formula/brainfm.rb <<RUBY
-          class Brainfm < Formula
+          cat > tap/Formula/brainfm-cli.rb <<RUBY
+          class BrainfmCli < Formula
             desc "Unofficial Brain.fm CLI"
             homepage "https://github.com/${{ github.repository }}"
             version "${brew_version}"
@@ -135,8 +135,8 @@ jobs:
           cd tap
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add Formula/brainfm.rb
-          git commit -m "brainfm ${brew_version}"
+          git add Formula/brainfm-cli.rb
+          git commit -m "brainfm-cli ${brew_version}"
           for i in 1 2 3; do
             git push && exit 0
             git pull --rebase
