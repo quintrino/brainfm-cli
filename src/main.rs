@@ -2,6 +2,7 @@ use anyhow::{anyhow, bail, Context, Result};
 use clap::{Parser, Subcommand, ValueEnum};
 use reqwest::blocking::{Client, ClientBuilder};
 use reqwest::header::{self, HeaderMap, HeaderValue};
+use reqwest::StatusCode;
 use serde::Deserialize;
 use std::env;
 use std::fs;
@@ -136,24 +137,68 @@ fn build_client(token: &str) -> Result<Client> {
 
 // ── API ───────────────────────────────────────────────────────────────────────
 
+const TOKEN_HINT: &str = "your token may have expired; get a fresh one from the browser and run `brainfm init --token <token>`";
+
+fn snippet(body: &str) -> String {
+    let s: String = body.chars().take(200).collect();
+    if body.chars().count() > 200 {
+        format!("{s}…")
+    } else {
+        s
+    }
+}
+
+/// Extract and deserialize the `result` field of an API response, turning
+/// auth failures and empty/null results into actionable errors instead of a
+/// bare serde type error.
+fn parse_result<T: serde::de::DeserializeOwned>(
+    status: StatusCode,
+    body: &str,
+    what: &str,
+) -> Result<T> {
+    if status == StatusCode::UNAUTHORIZED || status == StatusCode::FORBIDDEN {
+        bail!("{what}: API returned {status}; {TOKEN_HINT}");
+    }
+    if !status.is_success() {
+        bail!("{what}: API returned {status}: {}", snippet(body));
+    }
+    let v: serde_json::Value = serde_json::from_str(body)
+        .with_context(|| format!("{what}: response was not JSON: {}", snippet(body)))?;
+    match v.get("result") {
+        None | Some(serde_json::Value::Null) => {
+            let detail = ["message", "error"]
+                .iter()
+                .find_map(|k| v.get(*k).and_then(|m| m.as_str()))
+                .map(|m| format!(" ({m})"))
+                .unwrap_or_default();
+            bail!("{what}: API returned no result{detail}; {TOKEN_HINT}")
+        }
+        Some(result) => serde_json::from_value(result.clone())
+            .with_context(|| format!("{what}: unexpected response shape: {}", snippet(body))),
+    }
+}
+
+fn get_result<T: serde::de::DeserializeOwned>(client: &Client, url: &str, what: &str) -> Result<T> {
+    let resp = client.get(url).send()?;
+    let status = resp.status();
+    let body = resp.text()?;
+    parse_result(status, &body, what)
+}
+
 fn list_mental_states(client: &Client) -> Result<Vec<MentalState>> {
-    let body = client
-        .get(format!("{API_BASE}/v3/mentalStates/dynamic"))
-        .send()?
-        .text()?;
-    let v: serde_json::Value = serde_json::from_str(&body)?;
-    serde_json::from_value(v["result"].clone()).context("parse mental states")
+    get_result(
+        client,
+        &format!("{API_BASE}/v3/mentalStates/dynamic"),
+        "list mental states",
+    )
 }
 
 fn list_activities(client: &Client, state_id: &str) -> Result<Vec<Activity>> {
-    let body = client
-        .get(format!(
-            "{API_BASE}/v3/mentalStates/dynamic/{state_id}/activities"
-        ))
-        .send()?
-        .text()?;
-    let v: serde_json::Value = serde_json::from_str(&body)?;
-    serde_json::from_value(v["result"].clone()).context("parse activities")
+    get_result(
+        client,
+        &format!("{API_BASE}/v3/mentalStates/dynamic/{state_id}/activities"),
+        "list activities",
+    )
 }
 
 fn create_session(
@@ -172,16 +217,17 @@ fn create_session(
         payload["genreNames"] = serde_json::json!([g]);
     }
 
-    let body = client
+    let resp = client
         .post(format!(
             "{API_BASE}/v3/users/{user_id}/sessions?platform=web"
         ))
         .body(serde_json::to_string(&payload)?)
-        .send()?
-        .text()?;
+        .send()?;
+    let status = resp.status();
+    let body = resp.text()?;
 
-    let v: serde_json::Value = serde_json::from_str(&body)?;
-    let result = &v["result"];
+    let result: serde_json::Value = parse_result(status, &body, "create session")?;
+    let result = &result;
 
     let url = ["tokenedUrl", "cdnUrl", "url"]
         .iter()
@@ -490,5 +536,76 @@ fn resolve_act_id(client: &Client, state: &MentalState, activity: Option<&str>) 
             .as_ref()
             .map(|a| a.id.clone())
             .ok_or_else(|| anyhow!("no default activity for {}", state.id))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn states(status: StatusCode, body: &str) -> Result<Vec<MentalState>> {
+        parse_result(status, body, "list mental states")
+    }
+
+    #[test]
+    fn parses_a_normal_result() {
+        let body = r#"{"result":[{"id":"focus","displayValue":"Focus"},{"id":"sleep"}]}"#;
+        let parsed = states(StatusCode::OK, body).unwrap();
+        assert_eq!(parsed.len(), 2);
+        assert_eq!(parsed[0].id, "focus");
+        assert_eq!(parsed[1].display_value, None);
+    }
+
+    #[test]
+    fn empty_result_list_is_not_an_error() {
+        assert!(states(StatusCode::OK, r#"{"result":[]}"#).unwrap().is_empty());
+    }
+
+    // Regression: `{"result": null}` used to surface as the cryptic
+    // "parse mental states: invalid type: null, expected a sequence".
+    #[test]
+    fn null_result_gives_actionable_error() {
+        let err = states(StatusCode::OK, r#"{"result":null}"#).unwrap_err().to_string();
+        assert!(err.contains("no result"), "{err}");
+        assert!(err.contains("brainfm init"), "{err}");
+        assert!(!err.contains("invalid type"), "{err}");
+    }
+
+    #[test]
+    fn missing_result_key_gives_actionable_error() {
+        let err = states(StatusCode::OK, r#"{"message":"Token expired"}"#)
+            .unwrap_err()
+            .to_string();
+        assert!(err.contains("no result"), "{err}");
+        assert!(err.contains("Token expired"), "{err}");
+    }
+
+    #[test]
+    fn unauthorized_points_at_token_refresh() {
+        for status in [StatusCode::UNAUTHORIZED, StatusCode::FORBIDDEN] {
+            let err = states(status, r#"{"result":null}"#).unwrap_err().to_string();
+            assert!(err.contains("brainfm init"), "{err}");
+        }
+    }
+
+    #[test]
+    fn server_error_includes_status_and_body() {
+        let err = states(StatusCode::INTERNAL_SERVER_ERROR, "boom")
+            .unwrap_err()
+            .to_string();
+        assert!(err.contains("500"), "{err}");
+        assert!(err.contains("boom"), "{err}");
+    }
+
+    #[test]
+    fn non_json_body_is_reported() {
+        let err = states(StatusCode::OK, "<html>oops</html>").unwrap_err().to_string();
+        assert!(err.contains("not JSON"), "{err}");
+    }
+
+    #[test]
+    fn wrong_shape_is_reported_with_body() {
+        let err = states(StatusCode::OK, r#"{"result":"nope"}"#).unwrap_err().to_string();
+        assert!(err.contains("unexpected response shape"), "{err}");
     }
 }
