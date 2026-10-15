@@ -2,12 +2,12 @@
 name = "brainfm-cli"
 version = "0.1.0"
 edition = "2021"
-rust-version = "1.70"
+rust-version = "1.88"
 description = "Unofficial command-line client for Brain.fm"
 repository = "https://github.com/quintrino/brainfm-cli"
 
 [dependencies]
-reqwest  = { version = "0.12", features = ["json", "blocking"] }
+reqwest  = { version = "0.13", features = ["json", "blocking"] }
 serde    = { version = "1",    features = ["derive"] }
 serde_json = "1"
 anyhow   = "1"

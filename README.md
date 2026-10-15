@@ -18,7 +18,7 @@ audio player on your `PATH` (see Requirements), e.g. `brew install mpv`.
 
 ## Build
 
-To build it yourself you need Rust 1.70 or newer
+To build it yourself you need Rust 1.88 or newer
 (`curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`):
 
 ```bash
