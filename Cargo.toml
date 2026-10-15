@@ -2,10 +2,9 @@
 name = "brainfm-cli"
 version = "0.1.0"
 edition = "2021"
-
-[[bin]]
-name = "brainfm-cli"
-path = "src/main.rs"
+rust-version = "1.70"
+description = "Unofficial command-line client for Brain.fm"
+repository = "https://github.com/quintrino/brainfm-cli"
 
 [dependencies]
 reqwest  = { version = "0.12", features = ["json", "blocking"] }
